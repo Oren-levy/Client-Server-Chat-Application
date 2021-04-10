@@ -30,6 +30,7 @@ def init_user_data(userData, passAttLimit):
                 'logoutTime': 0,
                 'ipAddr': 0,
                 'port': 0,
+                'udpPort': 0,
                 'inbox': [],
                 'privConns': []
 
@@ -43,11 +44,13 @@ def update_user_data_dump(payload, user_data):
     username = payload["username"]
     password = payload["password"]
     ip_addr = payload["ip_address"]
+    port = payload["port"]
     udp_port = payload["udp_port"]
 
     user_data[username]['username'] = username
     user_data[username]['password'] = password
     user_data[username]['ipAddr'] = ip_addr
+    user_data[username]['port'] = port
     user_data[username]['udp_port'] = udp_port
 
 
