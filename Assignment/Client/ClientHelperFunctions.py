@@ -3,10 +3,11 @@ import sys
 import re
 
 
-def post_login(ip_addr, udp_port):
+def post_login(ip_addr, port, udp_port):
     payload = json.dumps({
         "command": "login",
         "ip_address": ip_addr,
+        "port": port,
         "udp_port": udp_port,
         "username": input("> Enter username: "),
         "password": input("> Enter password: ")

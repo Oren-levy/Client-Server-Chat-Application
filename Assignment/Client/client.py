@@ -23,9 +23,10 @@ clientUdpPort = int(sys.argv[3])
 clientSocket = socket(AF_INET, SOCK_STREAM)
 # Initiate the TCP connection between the client and server.
 clientSocket.connect((serverIP, serverPort))
-
+# Get user ip_addr and port
+ip, port = clientSocket.getsockname()
 # Create a user class
-user = User(" ", " ", " ", " ", " ", " ")
+user = User(clientSocket, ip, port, clientUdpPort)
 
 
 def recv_handler():
@@ -128,11 +129,9 @@ def create_user_threads():
 
 def login():
     while True:
-        # Get user ip_addr and port
-        ip, port = clientSocket.getsockname()
 
         # Get user login details
-        login_details = post_login(ip, clientUdpPort)
+        login_details = post_login(ip, user.port, clientUdpPort)
         # Send user login details to server
         clientSocket.send(login_details.encode())
 
@@ -145,7 +144,8 @@ def login():
             print("> Login success. Hi", login_response["username"])
 
             # Now that we know the user is legit, update their info
-            user.update_user_dump(login_response["username"], clientSocket, ip, port, clientUdpPort)
+            # user.update_user_dump(login_response["username"], clientSocket, ip, port, clientUdpPort)
+            user.set_username(login_response["username"])
             create_user_threads()
             break
 

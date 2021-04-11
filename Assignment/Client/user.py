@@ -1,20 +1,20 @@
 class User:
 
-    def __init__(self, username, password, socket, ip, port, prv_port):
+    def __init__(self, socket, ip, port, udp_port):
+        self.username = ""
+        self.password = ""
+        self.socket = socket
+        self.ipAddr = ip
+        self.port = port
+        self.udpPort = udp_port
+
+    def update_user_dump(self, username, socket, ip, port, udp_port):
         self.username = username
         self.password = password
         self.socket = socket
         self.ipAddr = ip
         self.port = port
-        self.prvPort = prv_port
-
-    def update_user_dump(self, username, socket, ip, port, prv_port):
-        self.username = username
-       # self.password = password
-        self.socket = socket
-        self.ipAddr = ip
-        self.port = port
-        self.prvPort = prv_port
+        self.udpPort = udp_port
 
     def get_username(self):
         return self.username
@@ -47,7 +47,7 @@ class User:
         self.port = port
 
     def get_prv_port(self):
-        return self.prvPort
+        return self.udpPort
 
-    def set_prv_port(self, prv_port):
-        self.prvPort = prv_port
+    def set_prv_port(self, udp_port):
+        self.udpPort = udp_port
