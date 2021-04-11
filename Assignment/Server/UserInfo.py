@@ -40,18 +40,21 @@ def init_user_data(userData, passAttLimit):
 
 
 def update_user_data_dump(payload, user_data):
-
     username = payload["username"]
     password = payload["password"]
     ip_addr = payload["ip_address"]
     port = payload["port"]
     udp_port = payload["udp_port"]
+    print(type(ip_addr))
+    print(type(port))
+    print(type(udp_port))
 
     user_data[username]['username'] = username
     user_data[username]['password'] = password
     user_data[username]['ipAddr'] = ip_addr
     user_data[username]['port'] = port
-    user_data[username]['udp_port'] = udp_port
+    user_data[username]['udpPort'] = udp_port
+    user_data[username]['status'] = "online"
 
 
 def update_user_data_specific(user_data, user, key, val):

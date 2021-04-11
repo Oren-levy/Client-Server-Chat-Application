@@ -8,14 +8,6 @@ class User:
         self.port = port
         self.udpPort = udp_port
 
-    def update_user_dump(self, username, socket, ip, port, udp_port):
-        self.username = username
-        self.password = password
-        self.socket = socket
-        self.ipAddr = ip
-        self.port = port
-        self.udpPort = udp_port
-
     def get_username(self):
         return self.username
 

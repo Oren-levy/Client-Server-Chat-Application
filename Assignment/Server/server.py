@@ -24,6 +24,11 @@ if 1 <= numPassFailAtt <= 6:
         print("“Invalid number of allowed failed consecutive attempt: number. The valid value of argument number is "
               "an integer between 1 and 5")
 
+fp = open("messagelog.txt", "w")
+fp.close()
+fp = open("userlog.txt", "w")
+fp.close()
+
 thread_lock = threading.Condition()
 
 # Create and initialise a list of dictionaries data structure to store user info
@@ -36,7 +41,21 @@ def send_response(client, payload, response):
     payload = json.dumps({
         "command": payload["command"],
         "response": response,
-        "username": payload["username"],
+        "username": payload["username"]
+    })
+
+    client.send(payload.encode())
+
+
+def send_response_private_conn(client, ip, port, response, payload):
+    payload = json.dumps({
+        "command": payload["command"],
+        "response": response,
+        "presenter": payload["presenter"],
+        "audience": payload["audience"],
+        "ip": ip,
+        "udp_port": port,
+        "file_name": payload["file_name"]
     })
 
     client.send(payload.encode())
@@ -55,7 +74,6 @@ def service_client_main(client, client_address, user):
                 exit(0)
 
             with thread_lock:
-
                 # Json.loads takes in a string and returns a json obj
                 payload = json.loads(payload)
                 # user.update_user_info_dump(payload)
@@ -69,6 +87,7 @@ def service_client_main(client, client_address, user):
                         print("USER AUTHENTICATED")
                         update_user_data_dump(payload, userData)
                         create_user_log(payload, userData)
+                        update_user_data_specific(userData, payload["username"], 'loginTime', get_time_stamp())
 
                 elif command == "MSG":
                     create_message_log(payload)
@@ -81,8 +100,20 @@ def service_client_main(client, client_address, user):
                     response = edit_message(payload)
 
                 elif command == "RDM":
-                    print("IN RDM")
                     response = read_messages(payload)
+
+                elif command == "ATU":
+                    response = active_users(userData, payload)
+
+                elif command == "OUT":
+                    response = logout(userData, payload)
+
+                elif command == "UDP":
+                    ip, port, response = get_private_connection_info(userData, payload)
+                    send_response_private_conn(client, ip, port, response, payload)
+                    thread_lock.notify()
+                    print(response)
+                    continue
 
                 print(response)
                 send_response(client, payload, response)

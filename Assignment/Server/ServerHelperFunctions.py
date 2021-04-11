@@ -47,7 +47,7 @@ def create_user_log(payload, user_data):
 
     username = payload["username"]
     ext_one_ip = str(user_data[username]["ipAddr"])
-    ext_two_port = str(user_data[username]['udp_port'])
+    ext_two_port = str(user_data[username]['udpPort'])
 
     format_log_file(username, file_to_open, ext_one_ip, ext_two_port)
 
@@ -83,7 +83,6 @@ def get_time_stamp():
 
 def format_log_file(username, file_to_open, ext_one, ext_two):
     fp = open(file_to_open, "a+")
-
     num_lines = get_num_lines(file_to_open)
     timestamp = get_time_stamp()
 
@@ -118,35 +117,11 @@ def user_confirm_message():
 
 def delete_message(payload):
     dlt = payload["message_to_dlt"]
-    response = "No message for you to delete"
-    message_list = []
-    match = False
+    file_to_open = "messagelog.txt"
+    error_response = "No message for you to delete"
+    success_response = ("Message " + payload["msg_num"] + " at " + payload["timestamp"] + " has been deleted")
 
-    with open("messagelog.txt", "r+") as fp:
-        for line in fp:
-            if check_for_match(line, dlt):
-                # Response to the client
-                response = ("Message " + payload["msg_num"] + " at " + payload["timestamp"] + " has been deleted")
-                match = True
-                continue
-
-            # Shift the index down only after we find a match
-            if match:
-                # Get the msg number and subtract one to reflect the new msg order
-                index = int(line[0]) - 1
-                mod_line = line
-                # [1:] gets all content from index one onward
-                mod_line = str(index) + mod_line[1:]
-                message_list.append(mod_line)
-
-            # Otherwise add existing line
-            else:
-                message_list.append(line)
-
-    fp.close()
-    write_to_file(message_list)
-
-    return response
+    return update_file(file_to_open, dlt, error_response, success_response)
 
 
 def edit_message(payload):
@@ -154,7 +129,8 @@ def edit_message(payload):
     message_list = []
     response = "No message for you to edit"
     match = False
-    with open("messagelog.txt", "r+") as fp:
+    file_to_open = "messagelog.txt"
+    with open(file_to_open, "r+") as fp:
         for line in fp:
             # Check if message#, timestamp, username match
             if check_for_match(line, edt):
@@ -178,7 +154,7 @@ def edit_message(payload):
                 message_list.append(line)
 
     fp.close()
-    write_to_file(message_list)
+    write_to_file(message_list, file_to_open)
     return response
 
 
@@ -206,18 +182,103 @@ def read_messages(payload):
     return new_messages
 
 
+def active_users(user_data, payload):
+    active_user_list = []
+    curr_user = payload["username"]
+    for user in user_data:
+        if user != 0 and curr_user != user and user_data[user]["status"] == 'online':
+            active_user = (str(user) +
+                           ", " +
+                           str(user_data[user]['ipAddr']) +
+                           ", " +
+                           str(user_data[user]['udpPort']) +
+                           ", active since " +
+                           str(user_data[user]['loginTime']))
+
+            active_user_list.append(active_user)
+
+    return active_user_list
+
+
+def logout(user_data, payload):
+    dlt_user = payload["username"]
+    user_data[dlt_user]['status'] = "offline"
+    error_response = "Couldn't log you out"
+    success_response = ("Goodbye " + dlt_user + ". You are now logged out")
+    file_to_open = "userlog.txt"
+
+    return update_file(file_to_open, dlt_user, error_response, success_response)
+
+
+# Return the users IP and Port number so that a private connection may be established
+# between two clients.
+def get_private_connection_info(user_data, payload):
+    audience = payload["audience"]
+    ip = 0
+    port = 0
+    if user_data[audience]['status'] == "offline":
+        response = "offline"
+
+    elif user_data[audience]['username'] == payload["presenter"]:
+        response = "yourself"
+
+    else:
+        ip = user_data[audience]['ipAddr']
+        port = user_data[audience]['udpPort']
+        response = "online"
+        print(type(ip))
+        print(type(port))
+
+    return ip, port, response
+
+
+# Opens a specified file (either userlog or messagelog), deletes the appropriate line,
+# and adjusts the user positions accordingly
+def update_file(file_to_open, dlt, error_response, success_response):
+    response = error_response
+    message_list = []
+    match = False
+
+    with open(file_to_open, "r+") as fp:
+        for line in fp:
+            if check_for_match(line, dlt):
+                # Response to the client
+                response = success_response
+                match = True
+                continue
+
+            # Shift the index down only after we find a match
+            if match:
+                # Get the msg number and subtract one to reflect the new msg order
+                index = int(line[0]) - 1
+                mod_line = line
+                # [1:] gets all content from index one onward
+                mod_line = str(index) + mod_line[1:]
+                message_list.append(mod_line)
+
+            # Otherwise add existing line
+            else:
+                message_list.append(line)
+
+    fp.close()
+    write_to_file(message_list, file_to_open)
+
+    return response
+
+
 # See if a message exists in a file
 def check_for_match(line, dlt):
     # Remove colons
     no_colon = re.sub(';', '', line)
     # Search for exact match within each line
+    print("NO COLON: ", no_colon)
     if dlt[1:] in no_colon:
         return True
 
 
 # Takes in a list and writes the contents to messagelog.txt
-def write_to_file(message_list):
-    fp = open("messagelog.txt", "w")
+def write_to_file(message_list, file):
+    fp = open(file, "w")
     for new_line in message_list:
         fp.write(new_line)
     fp.close()

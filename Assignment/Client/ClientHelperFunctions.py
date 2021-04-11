@@ -61,6 +61,36 @@ def post_read_messages(timestamp, username):
     return payload
 
 
+def get_active_users(username):
+    payload = json.dumps({
+        "command": "ATU",
+        "username": username
+    })
+
+    return payload
+
+
+def post_logout(username):
+    payload = json.dumps({
+        "command": "OUT",
+        "username": username
+    })
+
+    return payload
+
+
+# Query the server to see if the user we want to establish a private connection with is online
+def get_private_connection(presenter, audience, file):
+    payload = json.dumps({
+        "command": "UDP",
+        "presenter": presenter,
+        "audience": audience,
+        "file_name": file
+    })
+
+    return payload
+
+
 def partition_command(user_input):
     command = user_input.partition(" ")
     return command[0]
