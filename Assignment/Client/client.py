@@ -41,22 +41,41 @@ thread_lock = threading.Condition()
 
 
 def private_recv_handler():
-    print("> Private server listening ...")
+    # print("data before: ", data)
+    # print("Data type before: ", type(data))
+    #
+    # data = json.loads(data)
+    # print("data after: ", data)
+    # print("Data type after: ", type(data))
+
     active = True
     while active:
-        # Wait for response from server
-        peer_to_peer_file, client_address = serverSocketUdp.recvfrom(2048)
-        peer_to_peer_file = peer_to_peer_file.decode()
-        peer_to_peer_file = json.loads(peer_to_peer_file)
-        print("\n> " + peer_to_peer_file["presenter"] + " has established a private connection with you. Receiving "
-                                                        "file...")
+        # Wait for peer-to-peer connection to be established
+        data, addr = serverSocketUdp.recvfrom(1024)
+        data = data.decode()
+        data = json.loads(data)
 
+        # Inform client that a private connection has been established
+        print("\n> " + data["presenter"] + " has established a private connection with you. Receiving file...")
         with thread_lock:
-            file_name = peer_to_peer_file["presenter"] + "_" + peer_to_peer_file["file_name"]
-            print("Presenter: ", peer_to_peer_file["presenter"])
-            print("Audience: ", peer_to_peer_file["audience"])
-            print(peer_to_peer_file["file_name"])
-            print(file_name)
+            # Get the name of presenter and prepend to file name being shared
+            file_name = data["presenter"] + "_" + data["file_name"]
+
+            # We dont assume the file type and so we write in bytes
+            fp = open(file_name, 'wb')
+            fileData, addr = serverSocketUdp.recvfrom(1024)
+
+            try:
+                # So long as there are more bytes to read, keep writing to file
+                while fileData:
+                    fp.write(fileData)
+                    serverSocketUdp.settimeout(2)
+                    fileData, addr = serverSocketUdp.recvfrom(1024)
+            except timeout:
+                fp.close()
+                # serverSocketUdp.close()
+                print("> File downloaded")
+
             thread_lock.notify()
 
 
@@ -75,11 +94,20 @@ def private_send_handler(response):
                 audience_ip = response["ip"]
                 audience_port = response["udp_port"]
                 file = response["file_name"]
-                print(audience_ip)
-                print(audience_port)
-                print(file)
+
+                # First instance we just send the file name so the client can can record it
                 private_message = get_private_connection(user.get_username(), response["audience"], file)
                 clientSocketUdp.sendto(private_message.encode(), (audience_ip, audience_port))
+
+                # We dont assume the file type and so we read in bytes
+                fp = open(file, "rb")
+                data = fp.read(1024)
+                print("> Sending file ...")
+                while data:
+                    if clientSocketUdp.sendto(data, (audience_ip, audience_port)):
+                        data = fp.read(1024)
+                print("> File sent")
+                fp.close()
 
             thread_lock.notify()
             sending = False
@@ -220,15 +248,15 @@ def create_user_threads():
 
 #
 # def create_private_user_threads():
-#     print('Private client server is now listening...')
+#     print("> Private server listening ...")
 #     while True:
-#         print("ACCEPTED PRIV CONN")
 #         # With each new private connection we create a new socket dedicated to that client
-#         connection_socket, client_address = serverSocketUdp.accept()
+#         data, address = serverSocketUdp.recvfrom(1024)
+#         print("\nData type: ", type(data))
+#         print("> ACCEPTED PRIV CONN")
 #
 #         # create a new thread for the client socket
-#         recv_thread_udp = threading.Thread(name=str(client_address),
-#                                            target=private_recv_handler(connection_socket, client_address))
+#         recv_thread_udp = threading.Thread(target=private_recv_handler(data, address))
 #         recv_thread_udp.daemon = False
 #         recv_thread_udp.start()
 
