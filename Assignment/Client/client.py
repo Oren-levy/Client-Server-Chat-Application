@@ -29,6 +29,7 @@ clientSocketUdp = socket(AF_INET, SOCK_DGRAM)
 serverSocketUdp = socket(AF_INET, SOCK_DGRAM)
 serverSocketUdp.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
 serverSocketUdp.bind(('localhost', clientUdpPort))
+udp_buffer = 4096
 
 # Get user ip_addr and port
 ip, port = clientSocket.getsockname()
@@ -48,35 +49,40 @@ def private_recv_handler():
     # print("data after: ", data)
     # print("Data type after: ", type(data))
 
+    print("> Private server listening ...")
+
     active = True
     while active:
         # Wait for peer-to-peer connection to be established
-        data, addr = serverSocketUdp.recvfrom(1024)
+        data, addr = serverSocketUdp.recvfrom(udp_buffer)
         data = data.decode()
         data = json.loads(data)
 
-        # Inform client that a private connection has been established
-        print("\n> " + data["presenter"] + " has established a private connection with you. Receiving file...")
         with thread_lock:
             # Get the name of presenter and prepend to file name being shared
             file_name = data["presenter"] + "_" + data["file_name"]
 
+            # Inform client that a private connection has been established
+            print("\n> " + data["presenter"] + " has established a private connection with you. Receiving " + file_name)
+
             # We dont assume the file type and so we write in bytes
             fp = open(file_name, 'wb')
-            fileData, addr = serverSocketUdp.recvfrom(1024)
+            file_data, addr = serverSocketUdp.recvfrom(udp_buffer)
 
             try:
                 # So long as there are more bytes to read, keep writing to file
-                while fileData:
-                    fp.write(fileData)
-                    serverSocketUdp.settimeout(2)
-                    fileData, addr = serverSocketUdp.recvfrom(1024)
+                while file_data:
+                    fp.write(file_data)
+                    serverSocketUdp.settimeout(6)
+                    file_data, addr = serverSocketUdp.recvfrom(udp_buffer)
+
             except timeout:
                 fp.close()
-                # serverSocketUdp.close()
-                print("> File downloaded")
+                serverSocketUdp.settimeout(None)
+                thread_lock.notify()
 
-            thread_lock.notify()
+                print("> File downloaded")
+                print("> Enter one of the following commands [MSG, DLT, EDT, RDM, ATU, OUT UDP]: ")
 
 
 def private_send_handler(response):
@@ -88,7 +94,8 @@ def private_send_handler(response):
 
             elif response["response"] == "yourself":
                 print("> You can't establish a private connection with yourself")
-
+            elif response["response"] == "keyError":
+                print("> Invalid name given")
             else:
                 print("> Establishing private connection with " + response["audience"])
                 audience_ip = response["ip"]
@@ -99,15 +106,18 @@ def private_send_handler(response):
                 private_message = get_private_connection(user.get_username(), response["audience"], file)
                 clientSocketUdp.sendto(private_message.encode(), (audience_ip, audience_port))
 
-                # We dont assume the file type and so we read in bytes
-                fp = open(file, "rb")
-                data = fp.read(1024)
-                print("> Sending file ...")
-                while data:
-                    if clientSocketUdp.sendto(data, (audience_ip, audience_port)):
-                        data = fp.read(1024)
-                print("> File sent")
-                fp.close()
+                try:
+                    # We dont assume the file type and so we read in bytes
+                    fp = open(file, "rb")
+                    data = fp.read(1024)
+                    print("> Sending file ...")
+                    while data:
+                        if clientSocketUdp.sendto(data, (audience_ip, audience_port)):
+                            data = fp.read(udp_buffer)
+                    print("> File sent")
+                    fp.close()
+                except FileNotFoundError:
+                    print("> " + file + " is not a file")
 
             thread_lock.notify()
             sending = False
@@ -127,6 +137,8 @@ def recv_handler():
         if command == "RDM":
             if len(response) == 0:
                 print("> Server Response: No new messages to read")
+            elif response[0] == "Incorrect format":
+                print("> Incorrect format given, we expect: RDM 08 Apr 2021 13:59:19. Try again")
             else:
                 print("> See new messages below")
                 for message in response:
@@ -141,7 +153,9 @@ def recv_handler():
 
         elif command == "OUT":
             print("> Server Response: ", response)
+            clientSocket.shutdown(SHUT_RDWR)
             clientSocket.close()
+            os._exit(0)
 
         elif command == "UDP":
             private_send_handler(login_response)
@@ -211,6 +225,7 @@ def send_handler():
         elif command == "OUT":
             logout = post_logout(user.get_username())
             clientSocket.send(logout.encode())
+            active = False
 
         elif command == "UDP":
             # Get args following dlt
