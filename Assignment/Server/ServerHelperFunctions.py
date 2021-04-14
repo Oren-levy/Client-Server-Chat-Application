@@ -164,7 +164,12 @@ def read_messages(payload):
     print(payload["username"])
     message_time = payload["timestamp"]
     print("timestamp_to_check BEFORE: ", message_time)
-    message_time = time.strptime(message_time, "%d %b %Y %H:%M:%S")
+    try:
+        message_time = time.strptime(message_time, "%d %b %Y %H:%M:%S")
+    except ValueError:
+        incorrect_format = "Incorrect format"
+        new_messages.append(incorrect_format)
+        return new_messages
     print("timestamp_to_check AFTER: ", message_time[0:6])
     fp = open("messagelog.txt", "r")
     for line in fp:
@@ -216,20 +221,27 @@ def get_private_connection_info(user_data, payload):
     audience = payload["audience"]
     ip = 0
     port = 0
-    if user_data[audience]['status'] == "offline":
-        response = "offline"
+    response = "Unexpected"
+    try:
+        if user_data[audience]['status'] == "offline":
+            response = "offline"
 
-    elif user_data[audience]['username'] == payload["presenter"]:
-        response = "yourself"
+        elif user_data[audience]['username'] == payload["presenter"]:
+            response = "yourself"
 
-    else:
-        ip = user_data[audience]['ipAddr']
-        port = user_data[audience]['udpPort']
-        response = "online"
-        print(type(ip))
-        print(type(port))
+        else:
+            ip = user_data[audience]['ipAddr']
+            port = user_data[audience]['udpPort']
+            response = "online"
+            print(type(ip))
+            print(type(port))
 
-    return ip, port, response
+        return ip, port, response
+
+    except KeyError:
+        return ip, port, "keyError"
+
+
 
 
 # Opens a specified file (either userlog or messagelog), deletes the appropriate line,

@@ -119,6 +119,11 @@ def service_client_main(client, client_address, user):
                 send_response(client, payload, response)
                 thread_lock.notify()
 
+                if command == "OUT":
+                    client.shutdown(SHUT_RDWR)
+                    client.close()
+                    return
+
     return service_client
 
 
