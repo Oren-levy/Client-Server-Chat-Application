@@ -6,17 +6,16 @@ from ClientHelperFunctions import *
 from user import *
 
 import json
-import atexit
 import threading
 import time
 import sys
-import signal
-from typing import Dict
 from socket import SHUT_RDWR
 
-# serverName = 'localhost'
+# get ip from user first arg
 serverIP = sys.argv[1]
+# get server from user second arg
 serverPort = int(sys.argv[2])
+# get private port from user third arg
 clientUdpPort = int(sys.argv[3])
 
 # Create a client TCP socket and initiate the TCP connection between the client and server.
@@ -41,14 +40,8 @@ print(clientUdpPort)
 thread_lock = threading.Condition()
 
 
+# This function is responsible for servicing a private connection with another client.
 def private_recv_handler():
-    # print("data before: ", data)
-    # print("Data type before: ", type(data))
-    #
-    # data = json.loads(data)
-    # print("data after: ", data)
-    # print("Data type after: ", type(data))
-
     print("> Private server listening ...")
 
     active = True
@@ -75,7 +68,7 @@ def private_recv_handler():
                     fp.write(file_data)
                     serverSocketUdp.settimeout(6)
                     file_data, addr = serverSocketUdp.recvfrom(udp_buffer)
-
+            # File done downloading
             except timeout:
                 fp.close()
                 serverSocketUdp.settimeout(None)
@@ -85,17 +78,22 @@ def private_recv_handler():
                 print("> Enter one of the following commands [MSG, DLT, EDT, RDM, ATU, OUT UDP]: ")
 
 
+# This function is called when a user submits the UDP command, and is responsible for establishing a private connection
+# with another client
 def private_send_handler(response):
     sending = True
     while sending:
         with thread_lock:
+            # User is offline
             if response["response"] == "offline":
                 print("> " + response["audience"] + " is offline. Cant establish private connection")
-
+            # Sending to yourself is not allowed
             elif response["response"] == "yourself":
                 print("> You can't establish a private connection with yourself")
+            # No file exists
             elif response["response"] == "keyError":
                 print("> Invalid name given")
+            # Success, establish connection. Get IP and Port from server response
             else:
                 print("> Establishing private connection with " + response["audience"])
                 audience_ip = response["ip"]
@@ -123,6 +121,7 @@ def private_send_handler(response):
             sending = False
 
 
+# This function is responsible for receiving and processing server responses
 def recv_handler():
     active = True
     while active:
@@ -135,36 +134,43 @@ def recv_handler():
         command = login_response["command"]
 
         if command == "RDM":
+            # Empty array means no new messages after given timestamp
             if len(response) == 0:
                 print("> Server Response: No new messages to read")
+            # Server received a format that's not compatible with message log file
             elif response[0] == "Incorrect format":
                 print("> Incorrect format given, we expect: RDM 08 Apr 2021 13:59:19. Try again")
+            # Messages found in server, loop through and print to user
             else:
-                print("> See new messages below")
+                print("> See new messages below: ")
                 for message in response:
                     print("> Server Response: ", message.strip())
 
         elif command == "ATU":
+            # Empty array, no other users online
             if len(response) == 0:
                 print("> Server Response: No other active users")
+            # Array not empty, loop through printing online users
             else:
                 for active_users in response:
                     print("> Server Response: ", active_users)
 
         elif command == "OUT":
             print("> Server Response: ", response)
+            # Do all the closing of client sockets and exit
             clientSocket.shutdown(SHUT_RDWR)
             clientSocket.close()
             os._exit(0)
 
         elif command == "UDP":
+            # We dont communicate with the server, so go to private conn handle and establish direct conn with client
             private_send_handler(login_response)
 
-
+        # All other responses are a simple single message that can be displayed here
         else:
             print("> Server Response: ", response)
 
-
+# Thread responsible for taking in user input and sending to server
 def send_handler():
     active = True
     while active:
@@ -177,7 +183,7 @@ def send_handler():
             args = partition_one_arg(user_input)
 
             if not args.strip():
-                print("An argument must follow MSG. For example: MSG Hello World! Try again")
+                print("> An argument must follow MSG. For example: MSG Hello World! Try again")
 
             else:
                 # Convert to json and send msg to server
@@ -188,11 +194,12 @@ def send_handler():
             # Get args following dlt
             msg_num, timestamp = partition_two_arg(user_input)
 
+            # Incorrect argument given
             if not msg_num or not timestamp:
                 print("> Exactly two arguments must follow DLT. For example: DLT #1 08 Apr 2021 13:59:19. Try again")
 
             else:
-                print("TRYING TO DELETE: ", msg_num, timestamp)
+                # Put request to be sent to server as JSON object
                 delete = put_dlt(msg_num, timestamp, user.get_username())
                 clientSocket.send(delete.encode())
 
@@ -202,9 +209,11 @@ def send_handler():
 
             if not msg_num or not timestamp or not msg:
                 print(
-                    "> Exactly three arguments must follow EDT in the form: messagenumber timestamp message. For example: EDT #1 08 Apr 2021 13:59:19 Hellow World. Try again")
+                    "> Exactly three arguments must follow EDT. For example: EDT #1 08 Apr 2021 13:59:19 Hello "
+                    "World. Try again")
 
             else:
+                # Put request to be sent to server as JSON object
                 edit = put_edit(msg_num, timestamp, msg, user.get_username())
                 clientSocket.send(edit.encode())
 
@@ -215,14 +224,17 @@ def send_handler():
                 print("> Exactly one argument must follow RDM. For example: RDM 08 Apr 2021 13:59:19. Try again")
 
             else:
+                # Post request to be sent to server as JSON object
                 read_messages = post_read_messages(timestamp, user.get_username())
                 clientSocket.send(read_messages.encode())
 
         elif command == "ATU":
+            # Get request to be sent to server as JSON object
             active_users = get_active_users(user.get_username())
             clientSocket.send(active_users.encode())
 
         elif command == "OUT":
+            # Post request to be sent to server as JSON object
             logout = post_logout(user.get_username())
             clientSocket.send(logout.encode())
             active = False
@@ -234,25 +246,33 @@ def send_handler():
                 print("> Exactly two arguments must follow UDP. For example: UPD Obi-wan lecture1.mp4. Try again")
 
             else:
+                # Bypass server, establish connection with another client but first we issue something simmilar to ATU
+                # to get the clients PORT and IP address
                 peer_to_peer = get_private_connection(user.get_username(), audience, file_name)
                 clientSocket.send(peer_to_peer.encode())
 
         else:
+            # No command from the expected list was found, issue user to try again
             print("> You did not enter a command from the list. Try again")
 
         # Wait for server response before prompting user again
         time.sleep(0.1)
 
-
+# This function is responsible for creating a new thread for the client. Three threads it total:
+# 1. We create one private thread for receiving files from other clients.
+# 2. We create one thread for receiving info from the server.
+# 3. We create one thread for sending info to the server.
 def create_user_threads():
     private_recv_thread = threading.Thread(name="PrivateRecvHandler", target=private_recv_handler)
     private_recv_thread.daemon = True
     private_recv_thread.start()
 
+    # Thread for receiving
     recv_thread = threading.Thread(name="RecvHandler", target=recv_handler)
     recv_thread.daemon = True
     recv_thread.start()
 
+    # Thread for sending
     send_thread = threading.Thread(name="SendHandler", target=send_handler)
     send_thread.daemon = True
     send_thread.start()
@@ -260,22 +280,8 @@ def create_user_threads():
     while True:
         time.sleep(0.1)
 
-
-#
-# def create_private_user_threads():
-#     print("> Private server listening ...")
-#     while True:
-#         # With each new private connection we create a new socket dedicated to that client
-#         data, address = serverSocketUdp.recvfrom(1024)
-#         print("\nData type: ", type(data))
-#         print("> ACCEPTED PRIV CONN")
-#
-#         # create a new thread for the client socket
-#         recv_thread_udp = threading.Thread(target=private_recv_handler(data, address))
-#         recv_thread_udp.daemon = False
-#         recv_thread_udp.start()
-
-
+# First function that is called when client starts up. We get login details and send to server for validation
+# Upon success we create threads for the client.
 def login():
     while True:
 
@@ -298,6 +304,7 @@ def login():
             create_user_threads()
             break
 
+        # Too many invalid passwords sent to server
         elif response == "USER_BLOCKED":
             print("> Too many invalid password attempts, account blocked. Please try again later")
             try:
@@ -307,14 +314,15 @@ def login():
                 break
             except Exception:
                 pass
-
+        # Check server response, if invalid password prompt user
         elif response == "INVALID_PASSWORD":
             print("Invalid Password. Please try again")
 
+        # Check server response, if invalid username prompt user
         elif response == "INVALID_USERNAME":
             print("Invalid Username. Please try again")
 
-
+# Main function to try login.
 if __name__ == "__main__":
     try:
         login()

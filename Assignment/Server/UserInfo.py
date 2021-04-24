@@ -1,12 +1,6 @@
-import json
-import sys
-from socket import *
-import time
-import datetime
-
-
 # When the server starts up we load all the information pertaining to users
-# in a list of dictionaries.
+# in a list of dictionaries. This information is originally going to be unknown, though will be updated
+# once the user is logged in.
 def init_user_data(userData, passAttLimit):
     credFp = open("Credentials.txt", "r")
     credentials = credFp.readlines()
@@ -39,15 +33,13 @@ def init_user_data(userData, passAttLimit):
         addingData = False
 
 
+# Big update once user logs in
 def update_user_data_dump(payload, user_data):
     username = payload["username"]
     password = payload["password"]
     ip_addr = payload["ip_address"]
     port = payload["port"]
     udp_port = payload["udp_port"]
-    print(type(ip_addr))
-    print(type(port))
-    print(type(udp_port))
 
     user_data[username]['username'] = username
     user_data[username]['password'] = password
@@ -57,5 +49,6 @@ def update_user_data_dump(payload, user_data):
     user_data[username]['status'] = "online"
 
 
+# For updating specific user information
 def update_user_data_specific(user_data, user, key, val):
     user_data[user][key] = val

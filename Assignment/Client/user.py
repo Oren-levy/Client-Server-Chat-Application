@@ -1,3 +1,8 @@
+# User class that is created when a client starts up the application.
+# The user class stores all the constant information associated with a client.
+# Mainly received from command line. Except username and password which is only updated upon validation by server
+# Most getter methods are not used, but kept here for good design practice.
+
 class User:
 
     def __init__(self, socket, ip, port, udp_port):

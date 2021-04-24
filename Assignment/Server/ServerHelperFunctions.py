@@ -1,12 +1,11 @@
-import json
-import sys
-from socket import *
 import time
 import datetime
 import re
-import os.path
 
-
+# Check all edge cases for a user when they try login:
+# 1. Wrong username
+# 2. Wrong password
+# 3. Blocked
 def authenticate_user_login(userDetails, userData):
     username = userDetails["username"]
     password = userDetails["password"]
@@ -42,6 +41,7 @@ def authenticate_user_login(userDetails, userData):
         return "INVALID_USERNAME"
 
 
+# Open the log file and update it with a new user when they connect to the server
 def create_user_log(payload, user_data):
     file_to_open = "userlog.txt"
 
@@ -52,6 +52,7 @@ def create_user_log(payload, user_data):
     format_log_file(username, file_to_open, ext_one_ip, ext_two_port)
 
 
+# This should really be called update_message_log as we update the message log whenever a user issues a new message
 def create_message_log(payload):
     file_to_open = "messagelog.txt"
 
@@ -62,6 +63,8 @@ def create_message_log(payload):
     format_log_file(username, file_to_open, ext_one_msg, ext_two_edited)
 
 
+# Count the number of lines in a file to that we can
+# prefix both message log and user log with correct user/message order
 def get_num_lines(file_to_open):
     num_lines = sum(1 for line in open(file_to_open))
     num_lines += 1
@@ -69,9 +72,13 @@ def get_num_lines(file_to_open):
     return num_lines
 
 
+# Get the current date and remove microseconds, then convert to a named month format with day first
 def get_time_stamp():
+    # Get todays date
     timestamp = datetime.date.today()
+    # Remove microseconds
     cur_time = datetime.datetime.now().time().replace(microsecond=0)
+    # Convert to day month year format
     date = datetime.datetime(timestamp.year, timestamp.month, timestamp.day)
     cur_time = str(cur_time)
     timestamp = date.strftime("%d %b %Y ")
@@ -81,6 +88,7 @@ def get_time_stamp():
     return timestamp
 
 
+# Add user message to the log file in a consistent format
 def format_log_file(username, file_to_open, ext_one, ext_two):
     fp = open(file_to_open, "a+")
     num_lines = get_num_lines(file_to_open)
@@ -97,7 +105,6 @@ def format_log_file(username, file_to_open, ext_one, ext_two):
                   ext_two +
                   " " +
                   "\n")
-    print(format_log)
     fp.write(format_log)
     fp.close()
 
@@ -115,6 +122,7 @@ def user_confirm_message():
     return format_log
 
 
+# Delete a message from the message.log file
 def delete_message(payload):
     dlt = payload["message_to_dlt"]
     file_to_open = "messagelog.txt"
@@ -124,6 +132,7 @@ def delete_message(payload):
     return update_file(file_to_open, dlt, error_response, success_response)
 
 
+# Edit a message from the message.log file
 def edit_message(payload):
     edt = payload["message_to_edt"]
     message_list = []
@@ -158,35 +167,30 @@ def edit_message(payload):
     return response
 
 
+# Read all new messages after the given timestamp
 def read_messages(payload):
     new_messages = []
-    print(payload["timestamp"])
-    print(payload["username"])
     message_time = payload["timestamp"]
-    print("timestamp_to_check BEFORE: ", message_time)
+    # Validate the timestamp given by the user matches the timestamp structure of the server
     try:
         message_time = time.strptime(message_time, "%d %b %Y %H:%M:%S")
+    # Wrong format received
     except ValueError:
         incorrect_format = "Incorrect format"
         new_messages.append(incorrect_format)
         return new_messages
-    print("timestamp_to_check AFTER: ", message_time[0:6])
     fp = open("messagelog.txt", "r")
     for line in fp:
-        print("-------------------------------------------------------------------------------------------------")
         timestamp = line[3:23]
-        print("timestamp BEFORE: ", timestamp)
         message = time.strptime(timestamp, "%d %b %Y %H:%M:%S")
-        print("timestamp AFTER: ", message[0:6])
-        print("-------------------------------------------------------------------------------------------------")
 
+        # Check for messages AFTER the timestamp given
         if str(message) > str(message_time):
             new_messages.append(line)
-            print("TRUE")
     fp.close()
     return new_messages
 
-
+# Check the users that are online and store in an array
 def active_users(user_data, payload):
     active_user_list = []
     curr_user = payload["username"]
@@ -204,12 +208,12 @@ def active_users(user_data, payload):
 
     return active_user_list
 
-
+# Log a user out and update the user.log file
 def logout(user_data, payload):
     dlt_user = payload["username"]
     user_data[dlt_user]['status'] = "offline"
     error_response = "Couldn't log you out"
-    success_response = ("Goodbye " + dlt_user + ". You are now logged out")
+    success_response = ("> Goodbye " + dlt_user + ". You are now logged out")
     file_to_open = "userlog.txt"
 
     return update_file(file_to_open, dlt_user, error_response, success_response)
@@ -223,25 +227,24 @@ def get_private_connection_info(user_data, payload):
     port = 0
     response = "Unexpected"
     try:
+        # Trying to get information about an offline user
         if user_data[audience]['status'] == "offline":
             response = "offline"
 
+        # Trying to get information about oneself
         elif user_data[audience]['username'] == payload["presenter"]:
             response = "yourself"
 
+        # User online, get information
         else:
             ip = user_data[audience]['ipAddr']
             port = user_data[audience]['udpPort']
             response = "online"
-            print(type(ip))
-            print(type(port))
 
         return ip, port, response
 
     except KeyError:
         return ip, port, "keyError"
-
-
 
 
 # Opens a specified file (either userlog or messagelog), deletes the appropriate line,
@@ -283,7 +286,6 @@ def check_for_match(line, dlt):
     # Remove colons
     no_colon = re.sub(';', '', line)
     # Search for exact match within each line
-    print("NO COLON: ", no_colon)
     if dlt[1:] in no_colon:
         return True
 
