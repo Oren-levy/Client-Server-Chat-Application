@@ -1,5 +1,3 @@
-Sure, here is the formatted text of your document:
-
 ## Computer Networks and Applications Report
 
 **A Brief Description of the Application**
