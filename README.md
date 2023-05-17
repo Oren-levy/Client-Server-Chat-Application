@@ -1,4 +1,4 @@
-A BRIEF DESCRIPTION OF THE APPLICATION
+### A BRIEF DESCRIPTION OF THE APPLICATION
 The application specified in this report is an online videoconferencing and messaging application.
 
 The application is based on a client-server model consisting of one server and multiple clients communicating concurrently.
